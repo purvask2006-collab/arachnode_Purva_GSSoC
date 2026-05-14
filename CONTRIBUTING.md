@@ -40,9 +40,7 @@ Built with:
 
 # Why This Exists
 
-I built Arachnode because manually managing engineering applications at product-based startups was slow, repetitive, and impossible to scale efficiently.
-
-As a third-year student approaching placement season, I needed a way to:
+Arachnode was built to automate repetitive engineering job-hunt workflows like discovery, aggregation, outreach, and tracking at scale.
 
 - discover relevant roles automatically
 - aggregate jobs from scattered platforms
