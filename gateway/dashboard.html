@@ -873,6 +873,7 @@
           <option value="all">All stacks</option>
         </select>
         <button class="btn-outline" id="btn-refresh-jobs">Refresh</button>
+        <button class="btn-outline" id="btn-export-jobs">Export CSV</button>
       </div>
       <div id="jobs-grid" class="card-grid"></div>
     </section>
@@ -1481,6 +1482,30 @@
       else if (tab === 'stats') loadStats();
     }
 
+    function exportJobsCSV() {
+      const params = new URLSearchParams();
+
+      if (state.filters.search.trim()) {
+        params.set('search', state.filters.search.trim());
+      }
+
+      if (state.filters.status !== 'all') {
+        params.set('status', state.filters.status);
+      }
+
+      if (state.filters.stack !== 'all') {
+        params.set('stack', state.filters.stack);
+      }
+
+      params.set('format', 'csv');
+
+      const exportUrl = API(`/jobs/export?${params.toString()}`);
+
+      window.open(exportUrl, '_blank');
+
+      toast('Preparing CSV export...', 'info');
+    }
+
     // ===========================================================================
     // === EVENT WIRING ===
     // ===========================================================================
@@ -1504,6 +1529,7 @@
       renderJobs();
     });
     document.getElementById('btn-refresh-jobs').addEventListener('click', () => loadJobs(true));
+    document.getElementById('btn-export-jobs').addEventListener('click', exportJobsCSV);
     document.getElementById('btn-refresh-contacts').addEventListener('click', () => {
       state.contacts = {};
       loadContacts(true);
