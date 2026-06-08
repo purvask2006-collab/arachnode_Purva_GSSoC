@@ -20,6 +20,7 @@ import emit as emitter
 from scrapers.naukri import NaukriScraper
 from scrapers.linkedin import LinkedInScraper
 from scrapers.internshala import IntershalaScraper
+from scrapers.unstop import UnstopScraper
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,7 +28,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-PLATFORMS = ["naukri", "linkedin", "internshala"]
+PLATFORMS = ["naukri", "linkedin", "internshala", "unstop"]
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +63,7 @@ app = FastAPI(
 class ScrapeRequest(BaseModel):
     role: str = "Backend Engineer"
     stack: list[str] = []
+    platforms: list[str] = []   # empty → scrape all platforms
 
 
 class ScrapeResponse(BaseModel):
@@ -73,18 +75,35 @@ class ScrapeResponse(BaseModel):
 # Background scrape runner
 # ---------------------------------------------------------------------------
 
-async def _run_all_scrapers(role: str, stack: list[str]) -> None:
+async def _run_scrapers(role: str, stack: list[str], platforms: list[str]) -> None:
     """
-    Run all three scrapers concurrently then emit results to Redis.
+    Run selected (or all) scrapers concurrently then emit results to Redis.
     Designed to be launched as a BackgroundTask so /scrape returns immediately.
+
+    ``platforms`` is a list of lowercase platform names; an empty list means
+    "scrape everything" (the legacy / default behaviour).
     """
-    scrapers = [
+    all_scrapers = [
         NaukriScraper(),
         LinkedInScraper(),
         IntershalaScraper(),
+        UnstopScraper(),
     ]
 
-    # Run all scrapers in parallel; capture per-scraper exceptions.
+    # Filter to requested platforms; default to all when nothing is specified.
+    if platforms:
+        requested = {p.lower() for p in platforms}
+        scrapers = [s for s in all_scrapers if s.source_name.lower() in requested]
+        if not scrapers:
+            logger.warning(
+                "No scrapers matched requested platforms %s — falling back to all.",
+                platforms,
+            )
+            scrapers = all_scrapers
+    else:
+        scrapers = all_scrapers
+
+    # Run selected scrapers in parallel; capture per-scraper exceptions.
     results = await asyncio.gather(
         *[s.scrape(role, stack) for s in scrapers],
         return_exceptions=True,
@@ -117,8 +136,16 @@ async def health():
 @app.post("/scrape", response_model=ScrapeResponse, tags=["scraping"])
 async def trigger_scrape(body: ScrapeRequest, background_tasks: BackgroundTasks):
     """
-    Trigger all platform scrapers concurrently in the background.
+    Trigger platform scrapers concurrently in the background.
+
+    If ``body.platforms`` is non-empty, only those platforms are scraped.
+    An empty (or omitted) ``platforms`` list scrapes all platforms (legacy behaviour).
     Returns immediately while scraping happens asynchronously.
     """
-    background_tasks.add_task(_run_all_scrapers, body.role, body.stack)
-    return ScrapeResponse(triggered=True, platforms=PLATFORMS)
+    active_platforms = (
+        [p.lower() for p in body.platforms]
+        if body.platforms
+        else PLATFORMS
+    )
+    background_tasks.add_task(_run_scrapers, body.role, body.stack, body.platforms)
+    return ScrapeResponse(triggered=True, platforms=active_platforms)
