@@ -78,6 +78,7 @@ class ScrapeResponse(BaseModel):
 async def _run_scrapers(role: str, stack: list[str], platforms: list[str]) -> None:
     """
     Run selected (or all) scrapers concurrently then emit results to Redis.
+    Run all four scrapers concurrently then emit results to Redis.
     Designed to be launched as a BackgroundTask so /scrape returns immediately.
 
     ``platforms`` is a list of lowercase platform names; an empty list means
